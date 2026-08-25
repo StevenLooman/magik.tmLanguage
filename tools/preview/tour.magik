@@ -1,0 +1,72 @@
+#% text_encoding = iso8859_1
+_package sw
+$
+
+## Result of a single trace run.
+##
+## @slot {sw:symbol} direction One of :upstream, :downstream or :both.
+## @slot {sw:rope<sw:trace_step>} visited Steps, in the order reached.
+## @generic {sw:trace_step} E Element type yielded by steps().
+_pragma(classify_level=basic, topic={network_trace})
+def_slotted_exemplar(:trace_result,
+	{
+		{:direction, :both, :readable},
+		{:visited, _unset},
+		{:separator, %tab},
+		{:total_length, 0.0},
+		{:label, "none"}          # slot defaults are scoped
+	},
+	{@sw:test_case})
+$
+
+trace_result.define_shared_constant(:default_max_depth, 32, :public)
+$
+
+_pragma(classify_level=basic, topic={network_trace})
+_iter _method trace_result.steps(_optional max_depth)
+	## Iterate over the recorded steps, shallowest first.
+	## @param {sw:integer|sw:unset} max_depth How deep to walk.
+	## @return {sw:integer} Number of steps recorded.
+	## @loop {sw:trace_step}
+	## @invokes_method {sw:rope.fast_elements()}
+	_local limit << max_depth _default trace_result.default_max_depth
+
+	_for step _over .visited.fast_elements()
+	_loop @over_steps
+		_if step.depth > limit _orif _not step.traceable?()
+		_then
+			_continue @over_steps
+		_endif
+
+		_loopbody(step)
+	_endloop
+_endmethod
+$
+
+_method trace_result[index]
+	## Step at INDEX -- Smallworld prose convention.
+	>> .visited[index]
+_endmethod
+$
+
+_global trace_walk <<
+_proc@trace_walk(start, _gather extras)
+	#  Initial Author  : user.name, Date : 2019-04-08
+	## Parameters      : START - object to walk from
+	## Returns         : a populated trace_result
+	## Function        : Walks the network, aborting on lookup failure.
+	_dynamic !trace_debug?!
+
+	_catch@trace_aborted
+		_local quoted << 'a "quoted" label'
+		_local nodes << property_list.new()
+		nodes[1].link_to(nodes[2])
+		_if nodes[1].|conductor size| _is _unset
+		_then
+			_throw@trace_aborted _with :|lookup failed|
+		_endif
+	_endcatch
+
+	>> _clone.init(_scatter extras)
+_endproc
+$
